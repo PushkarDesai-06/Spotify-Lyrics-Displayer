@@ -1,0 +1,49 @@
+{
+    "packages": [
+        {
+            "name": "akashrchandran/spotify-lyrics-api",
+            "version": "v2.1.1",
+            "version_normalized": "2.1.1.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/akashrchandran/spotify-lyrics-api.git",
+                "reference": "8b037155700ef1763fe6e16edcc65fd333f5b88b"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/akashrchandran/spotify-lyrics-api/zipball/8b037155700ef1763fe6e16edcc65fd333f5b88b",
+                "reference": "8b037155700ef1763fe6e16edcc65fd333f5b88b",
+                "shasum": ""
+            },
+            "require": {
+                "php": "^8.0.0"
+            },
+            "time": "2024-11-02T15:20:06+00:00",
+            "type": "library",
+            "installation-source": "dist",
+            "autoload": {
+                "psr-4": {
+                    "SpotifyLyricsApi\\": "src"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "GPL-3.0-only"
+            ],
+            "authors": [
+                {
+                    "name": "Akash R Chandran",
+                    "email": "chandranrakash@gmail.com"
+                }
+            ],
+            "description": "A Rest API for fetching lyrics from Spotify which is powered by Musixmatch.",
+            "support": {
+                "issues": "https://github.com/akashrchandran/spotify-lyrics-api/issues",
+                "source": "https://github.com/akashrchandran/spotify-lyrics-api/tree/v2.1.1"
+            },
+            "install-path": "../akashrchandran/spotify-lyrics-api"
+        }
+    ],
+    "dev": true,
+    "dev-package-names": []
+}
