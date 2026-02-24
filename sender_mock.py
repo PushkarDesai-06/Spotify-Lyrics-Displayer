@@ -1,4 +1,3 @@
-import serial
 import time
 from spotifyFetch import getLyricsData
 
@@ -12,14 +11,19 @@ class MockSerial:
     def write(self, data):
         text = data.decode('utf-8').strip()
         print(f"[MOCK DISPLAY] {text}")
+    
+    def close(self):
+        print("Mock serial connection closed")
 
-# Try to connect to real hardware, fallback to mock
+# Try to import and use real serial, fallback to mock
 try:
+    import serial
     ser = serial.Serial("COM11", 9600)
-    print("Real serial connection established on COM11")
+    print("Real serial connection established")
 except:
     print("COM11 not found - using mock serial for testing")
     ser = MockSerial("COM11", 9600)
+
 time.sleep(2)
 
 def sendTwoLines(line1, line2=""):
@@ -65,7 +69,3 @@ def startLyricsDisplay(lyrics):
     print("Finished lyric transfer.")
 
     
-if __name__ == "__main__":
-    track_url = 'https://open.spotify.com/track/2u9S9JJ6hTZS3Vf22HOZKg?si=34b501c81e9c4a5e'
-    lyrics = getLyricsData(track_url)
-    startLyricsDisplay(lyrics)
