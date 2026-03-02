@@ -1,74 +1,40 @@
-import string
-import serial
-import time
-import datetime
-from spotifyFetch import getLyricsData
+import asyncio
+import sys
 
-ser = serial.Serial("COM11", 9600)
-print(ser.name)
+from lyricsTerminal import main_local, main_web, BOLD, RESET
+from spotifyFetch import ensure_logged_in
+from sender import SerialSender
 
+if __name__ == "__main__":
+    print(f"\n{BOLD}Spotify Lyrics Terminal{RESET}")
+    print("\u2500" * 30)
 
-def findCOM():
-    for i in range():
-        try:
-            ser = serial.Serial(f"COM{i}" , 9600)
-        except:
-            print("error")
+    if len(sys.argv) > 1:
+        mode = sys.argv[1].lower()
+    else:
+        print("  [1] Local      — Windows media session (event-driven, recommended)")
+        print("  [2] Web        — Spotify API polling (works on any device)")
+        print("  [3] Local + Serial  — Local mode + send to Arduino")
+        print("  [4] Web   + Serial  — Web mode   + send to Arduino")
+        choice = input("\nChoose mode [1/2/3/4]: ").strip()
+        mode = {"1": "local", "2": "web", "3": "local-serial", "4": "web-serial"}.get(choice, "local")
 
+    # Set up serial if needed
+    sender = None
+    if "serial" in mode:
+        port = input("Serial port [COM11]: ").strip() or "COM11"
+        sender = SerialSender(port=port)
 
-def encodeStr(str: string):
-    return str.encode("utf-8")
-
-def sendStr(str):
-
-    temp = str
-    if(len(temp) > 16):
-        temp = temp[:16] + '\n' + temp[16:]
-    ser.write(encodeStr(temp))
-
-def sendNumbers():
-    time.sleep(2)
-    sendStr('Starting...')
-    time.sleep(2)
-    i = 0
-    while 1:
-        sendStr(str(i))
-        i += 1
-        time.sleep(1)
-
-def initClock():
-    time.sleep(2)
-    while 1:
-        current_datetime = datetime.datetime.now()
-        formatted_time = current_datetime.strftime("%H:%M:%S")
-    # if(int(formatted_time[0:2]) > 12):
-    #   formatted_time += "PM"
-    # else:
-    #   formatted_time += "AM"
-        sendStr(formatted_time)
-        time.sleep(1)
-
-
-def initTransfer():
-    while 1:
-        time.sleep(1)
-        sendStr('Wassup!')
-
-def startLyricsTransfer():
-    lyrics = getLyricsData('https://open.spotify.com/track/0AAMnNeIc6CdnfNU85GwCH?si=da2afe08a6724759')
-    print('fetched....')  
-    for i in lyrics:
-        time.sleep(i['startTime'])
-        sentence = i['words']
-        sendStr(sentence)
-        print(i['words'])
-
-
-# sendNumbers()
-
-############################# START HERE #############################
-
-
-
-startLyricsTransfer()
-
+    try:
+        print(f"\nLogging in to Spotify...")
+        ensure_logged_in()
+        print(f"Starting in {BOLD}{mode}{RESET} mode...\n")
+        if "web" in mode:
+            asyncio.run(main_web(serial_sender=sender))
+        else:
+            asyncio.run(main_local(serial_sender=sender))
+    except KeyboardInterrupt:
+        if sender:
+            sender.clear()
+            sender.close()
+        print(f"\n{RESET}Stopped.")

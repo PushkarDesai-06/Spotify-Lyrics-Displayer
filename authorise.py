@@ -4,6 +4,9 @@ import urllib.parse
 from datetime import datetime, timedelta
 import json
 import os
+import webbrowser
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 
 class SpotifyAuth:
     def __init__(self, client_id, client_secret, redirect_uri):
@@ -176,10 +179,79 @@ class SpotifyAuth:
             print(f"Error getting user profile: {response.status_code} - {response.text}")
             return None
 
-# Example usage and configuration
-SPOTIFY_CLIENT_ID = "62c6e1797a1a4493afff4bd2238dcd55"  # From your Express server
-SPOTIFY_CLIENT_SECRET = ""  # You need to get this from Spotify Developer Dashboard
-SPOTIFY_REDIRECT_URI = "http://127.0.0.1:8080/callback"
+    def login_interactive(self, scopes=None, token_file='spotify_tokens.json'):
+        """Full interactive OAuth login flow."""
+        if os.path.exists(token_file):
+            self.load_token_from_file(token_file)
+            token = self.get_valid_token()
+            if token:
+                print("Loaded saved token.")
+                return token
+
+        if scopes is None:
+            scopes = [
+                'user-read-private',
+                'user-read-email',
+                'user-read-playback-state',
+                'user-read-currently-playing',
+            ]
+        auth_url = self.get_auth_url(scopes)
+
+        # 3. Start local callback server to capture the code
+        auth_code_holder = [None]
+        server_done = threading.Event()
+
+        class CallbackHandler(BaseHTTPRequestHandler):
+            def log_message(self, format, *args):
+                pass  # silence server logs
+
+            def do_GET(self):
+                parsed = urllib.parse.urlparse(self.path)
+                params = urllib.parse.parse_qs(parsed.query)
+                if 'code' in params:
+                    auth_code_holder[0] = params['code'][0]
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'text/html')
+                    self.end_headers()
+                    self.wfile.write(b'<h2>Login successful! You can close this tab.</h2>')
+                else:
+                    self.send_response(400)
+                    self.end_headers()
+                    self.wfile.write(b'<h2>Login failed : no code received.</h2>')
+                server_done.set()
+
+        parsed_redirect = urllib.parse.urlparse(self.redirect_uri)
+        port = parsed_redirect.port or 8080
+        server = HTTPServer(('127.0.0.1', port), CallbackHandler)
+
+        # 4. Open browser and wait
+        print(f"\nOpening Spotify login in your browser...")
+        print(f"If it doesn't open, visit:\n  {auth_url}\n")
+        webbrowser.open(auth_url)
+
+        server_thread = threading.Thread(target=server.handle_request)
+        server_thread.start()
+        server_done.wait(timeout=120)
+        server.server_close()
+
+        code = auth_code_holder[0]
+        if not code:
+            print("Login timed out or was cancelled.")
+            return None
+
+        # 5. Exchange code for token
+        if self.exchange_code_for_token(code):
+            print("Login successful!")
+            return self.access_token
+        return None
+
+# Credentials are loaded from .env — do not hardcode here
+import dotenv as _dotenv
+_dotenv.load_dotenv()
+
+SPOTIFY_CLIENT_ID     = os.environ.get("CLIENT_ID", "")
+SPOTIFY_CLIENT_SECRET = os.environ.get("CLIENT_SECRET", "")
+SPOTIFY_REDIRECT_URI  = os.environ.get("REDIRECT_URI", "http://127.0.0.1:8080/callback")
 
 def create_spotify_auth():
     """Create and return a SpotifyAuth instance"""

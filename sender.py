@@ -1,71 +1,70 @@
 import serial
 import time
-from spotifyFetch import getLyricsData
 
-# Mock serial connection for testing without hardware
+
 class MockSerial:
+    """Stand-in when no hardware is connected."""
     def __init__(self, port, baudrate):
         self.port = port
         self.baudrate = baudrate
-        print(f"Mock serial connection to {port} at {baudrate} baud")
-    
+        print(f"[Serial] Hardware not found on {port} — using mock display")
+
     def write(self, data):
         text = data.decode('utf-8').strip()
-        print(f"[MOCK DISPLAY] {text}")
+        print(f"[DISPLAY] {text}")
 
-# Try to connect to real hardware, fallback to mock
-try:
-    ser = serial.Serial("COM11", 9600)
-    print("Real serial connection established on COM11")
-except:
-    print("COM11 not found - using mock serial for testing")
-    ser = MockSerial("COM11", 9600)
-time.sleep(2)
+    def close(self):
+        pass
 
-def sendTwoLines(line1, line2=""):
-    message = line1.ljust(16) + "|" + line2.ljust(16) + "\n"
-    ser.write(message.encode("utf-8"))
-    print(f"Sent: [{line1}] | [{line2}]")
 
-def splitAndSend(text, time_available):
-    splits = []
-    while len(text) > 0:
-        line1 = text[:16]
-        line2 = text[16:32] if len(text) > 16 else ""
-        splits.append((line1, line2))
-        text = text[32:]
+class SerialSender:
+    """Manages a serial connection to a 16x2 LCD Arduino display.
 
-    delay_per_split = time_available / max(len(splits), 1)
+    Call send_line(text) whenever the current lyric changes.
+    Falls back to MockSerial if the port is unavailable.
+    """
 
-    for (line1, line2) in splits:
-        sendTwoLines(line1, line2)
-        time.sleep(delay_per_split)
+    LINE_WIDTH = 16
 
-def startLyricsDisplay(lyrics):
-    print("Starting lyric transfer...")
-    start_time = time.time()
+    def __init__(self, port: str = "COM11", baudrate: int = 9600, warmup: float = 2.0):
+        self.port = port
+        try:
+            self.ser = serial.Serial(port, baudrate)
+            print(f"[Serial] Connected to {port} at {baudrate} baud")
+            time.sleep(warmup)   # let Arduino reset
+        except (serial.SerialException, OSError):
+            self.ser = MockSerial(port, baudrate)
 
-    for idx, item in enumerate(lyrics):
-        target_time = start_time + item['startTime']
+    def _send_raw(self, line1: str, line2: str = ""):
+        """Send two 16-char lines separated by '|', terminated with newline."""
+        msg = line1.ljust(self.LINE_WIDTH)[:self.LINE_WIDTH] + "|" + \
+              line2.ljust(self.LINE_WIDTH)[:self.LINE_WIDTH] + "\n"
+        self.ser.write(msg.encode("utf-8"))
 
-        while time.time() < target_time:
-            time.sleep(0.01)
+    def send_line(self, text: str):
+        """Send a lyric line, splitting across both rows if needed."""
+        text = text.replace('\n', ' ').strip()
+        line1 = text[:self.LINE_WIDTH]
+        line2 = text[self.LINE_WIDTH:self.LINE_WIDTH * 2] if len(text) > self.LINE_WIDTH else ""
+        self._send_raw(line1, line2)
 
-        sentence = item['words'].replace('\n', ' ')
+    def clear(self):
+        """Blank both rows."""
+        self._send_raw("", "")
 
-        if idx < len(lyrics) - 1:
-            next_time = lyrics[idx + 1]['startTime']
-        else:
-            next_time = item['startTime'] + 2  # fallback gap for last lyric
+    def close(self):
+        self.ser.close()
 
-        time_available = max(next_time - item['startTime'], 0.1)
 
-        splitAndSend(sentence, time_available)
-
-    print("Finished lyric transfer.")
-
-    
 if __name__ == "__main__":
-    track_url = 'https://open.spotify.com/track/2u9S9JJ6hTZS3Vf22HOZKg?si=34b501c81e9c4a5e'
-    lyrics = getLyricsData(track_url)
-    startLyricsDisplay(lyrics)
+    # Quick standalone test
+    from spotifyFetch import getLyricsData
+    sender = SerialSender()
+    lyrics = getLyricsData('https://open.spotify.com/track/2u9S9JJ6hTZS3Vf22HOZKg')
+    start  = time.time()
+    for idx, item in enumerate(lyrics):
+        target = start + item['startTime']
+        while time.time() < target:
+            time.sleep(0.01)
+        sender.send_line(item['words'])
+        print(item['words'])

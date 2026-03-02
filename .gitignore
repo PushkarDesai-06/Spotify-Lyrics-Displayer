@@ -3,3 +3,5 @@ __pycache__/
 *.pyc
 express/auth_code.txt
 .env
+spotify_tokens.json
+test_api.py
